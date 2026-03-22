@@ -1,23 +1,11 @@
 from flask import Flask, request, jsonify
 import requests
+import os
 
 app = Flask(__name__, static_folder="static")
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-
-def ask_ollama(prompt):
-    try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": "mistral",
-                "prompt": prompt,
-                "stream": False
-            }
-        )
-        return response.json().get("response", "Ошибка ответа")
-    except Exception as e:
-        return f"Ошибка Ollama: {e}"
+API_URL = "https://api.together.xyz/v1/chat/completions"
+API_KEY = "ТВОЙ_API_КЛЮЧ"
 
 @app.route("/")
 def index():
@@ -26,30 +14,27 @@ def index():
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
-
     messages = data.get("messages", [])
-    mode = data.get("mode", "mini")
 
-    # собираем весь диалог в один промпт
-    prompt = ""
-    for m in messages:
-        if m["role"] == "user":
-            prompt += f"User: {m['content']}\n"
-        else:
-            prompt += f"AI: {m['content']}\n"
+    response = requests.post(
+        API_URL,
+        headers={
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "mistral",
+            "messages": messages
+        }
+    )
 
-    prompt += "AI:"
-
-    if mode == "mini":
-        prompt = "Отвечай коротко.\n\n" + prompt
-    elif mode == "1.1":
-        prompt = "Отвечай подробно и с объяснением.\n\n" + prompt
-
-    answer = ask_ollama(prompt)
+    result = response.json()
 
     return jsonify({
-        "answer": answer
+        "answer": result["choices"][0]["message"]["content"]
     })
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    import os
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
